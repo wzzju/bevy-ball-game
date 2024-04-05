@@ -9,11 +9,14 @@ pub const NUMBER_OF_ENEMIES: usize = 4;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_startup_system(spawn_camera)
-        .add_startup_system(spawn_player)
-        .add_startup_system(spawn_enemies)
-        .add_system(player_movement)
-        .add_system(confine_player_movement)
+        .add_systems(Startup, (spawn_camera, spawn_player, spawn_enemies))
+        .add_systems(
+            Update,
+            (
+                player_movement,
+                confine_player_movement.after(player_movement),
+            ),
+        )
         .run();
 }
 
@@ -72,23 +75,23 @@ pub fn spawn_enemies(
 }
 
 pub fn player_movement(
-    keyboard_input: Res<Input<KeyCode>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut player_query: Query<&mut Transform, With<Player>>,
     time: Res<Time>,
 ) {
     if let Ok(mut transform) = player_query.get_single_mut() {
         let mut direction = Vec3::ZERO;
 
-        if keyboard_input.pressed(KeyCode::Left) || keyboard_input.pressed(KeyCode::A) {
+        if keyboard_input.pressed(KeyCode::ArrowLeft) || keyboard_input.pressed(KeyCode::KeyA) {
             direction += Vec3::new(-1.0, 0.0, 0.0);
         }
-        if keyboard_input.pressed(KeyCode::Right) || keyboard_input.pressed(KeyCode::D) {
+        if keyboard_input.pressed(KeyCode::ArrowRight) || keyboard_input.pressed(KeyCode::KeyD) {
             direction += Vec3::new(1.0, 0.0, 0.0);
         }
-        if keyboard_input.pressed(KeyCode::Up) || keyboard_input.pressed(KeyCode::W) {
+        if keyboard_input.pressed(KeyCode::ArrowUp) || keyboard_input.pressed(KeyCode::KeyW) {
             direction += Vec3::new(0.0, 1.0, 0.0);
         }
-        if keyboard_input.pressed(KeyCode::Down) || keyboard_input.pressed(KeyCode::S) {
+        if keyboard_input.pressed(KeyCode::ArrowDown) || keyboard_input.pressed(KeyCode::KeyS) {
             direction += Vec3::new(0.0, -1.0, 0.0);
         }
 
@@ -113,7 +116,7 @@ pub fn confine_player_movement(
         let y_min = 0.0 + half_player_size;
         let y_max = window.height() - half_player_size;
 
-        let mut translation = player_transform.translation;
+        let translation = &mut player_transform.translation;
 
         // Bound the player x position
         if translation.x < x_min {
@@ -127,7 +130,5 @@ pub fn confine_player_movement(
         } else if translation.y > y_max {
             translation.y = y_max;
         }
-
-        player_transform.translation = translation;
     }
 }
