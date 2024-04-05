@@ -11,15 +11,18 @@ pub const ENEMY_SIZE: f32 = 64.0; // This is the enemy sprite size.
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_startup_system(spawn_camera)
-        .add_startup_system(spawn_player)
-        .add_startup_system(spawn_enemies)
-        .add_system(player_movement)
-        .add_system(confine_player_movement)
-        .add_system(enemy_movement)
-        .add_system(update_enemy_direction)
-        .add_system(confine_enemy_movement)
-        .add_system(enemy_hit_player)
+        .add_systems(Startup, (spawn_camera, spawn_player, spawn_enemies))
+        .add_systems(
+            Update,
+            (
+                player_movement,
+                confine_player_movement,
+                enemy_movement,
+                update_enemy_direction,
+                confine_enemy_movement,
+                enemy_hit_player,
+            ),
+        )
         .run();
 }
 
@@ -82,23 +85,23 @@ pub fn spawn_enemies(
 }
 
 pub fn player_movement(
-    keyboard_input: Res<Input<KeyCode>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut player_query: Query<&mut Transform, With<Player>>,
     time: Res<Time>,
 ) {
     if let Ok(mut transform) = player_query.get_single_mut() {
         let mut direction = Vec3::ZERO;
 
-        if keyboard_input.pressed(KeyCode::Left) || keyboard_input.pressed(KeyCode::A) {
+        if keyboard_input.pressed(KeyCode::ArrowLeft) || keyboard_input.pressed(KeyCode::KeyA) {
             direction += Vec3::new(-1.0, 0.0, 0.0);
         }
-        if keyboard_input.pressed(KeyCode::Right) || keyboard_input.pressed(KeyCode::D) {
+        if keyboard_input.pressed(KeyCode::ArrowRight) || keyboard_input.pressed(KeyCode::KeyD) {
             direction += Vec3::new(1.0, 0.0, 0.0);
         }
-        if keyboard_input.pressed(KeyCode::Up) || keyboard_input.pressed(KeyCode::W) {
+        if keyboard_input.pressed(KeyCode::ArrowUp) || keyboard_input.pressed(KeyCode::KeyW) {
             direction += Vec3::new(0.0, 1.0, 0.0);
         }
-        if keyboard_input.pressed(KeyCode::Down) || keyboard_input.pressed(KeyCode::S) {
+        if keyboard_input.pressed(KeyCode::ArrowDown) || keyboard_input.pressed(KeyCode::KeyS) {
             direction += Vec3::new(0.0, -1.0, 0.0);
         }
 
@@ -123,7 +126,7 @@ pub fn confine_player_movement(
         let y_min = 0.0 + half_player_size;
         let y_max = window.height() - half_player_size;
 
-        let mut translation = player_transform.translation;
+        let translation = &mut player_transform.translation;
 
         // Bound the player x position
         if translation.x < x_min {
@@ -137,8 +140,6 @@ pub fn confine_player_movement(
         } else if translation.y > y_max {
             translation.y = y_max;
         }
-
-        player_transform.translation = translation;
     }
 }
 
@@ -150,9 +151,9 @@ pub fn enemy_movement(mut enemy_query: Query<(&mut Transform, &Enemy)>, time: Re
 }
 
 pub fn update_enemy_direction(
+    mut commands: Commands,
     mut enemy_query: Query<(&Transform, &mut Enemy)>,
     window_query: Query<&Window, With<PrimaryWindow>>,
-    audio: Res<Audio>,
     asset_server: Res<AssetServer>,
 ) {
     let window = window_query.get_single().unwrap();
@@ -187,7 +188,11 @@ pub fn update_enemy_direction(
             } else {
                 sound_effect_2
             };
-            audio.play(sound_effect);
+            commands.spawn(AudioBundle {
+                source: sound_effect,
+                settings: PlaybackSettings::DESPAWN,
+                ..default()
+            });
         }
     }
 }
@@ -229,7 +234,6 @@ pub fn enemy_hit_player(
     mut player_query: Query<(Entity, &Transform), With<Player>>,
     enemy_query: Query<&Transform, With<Enemy>>,
     asset_server: Res<AssetServer>,
-    audio: Res<Audio>,
 ) {
     if let Ok((player_entity, player_transform)) = player_query.get_single_mut() {
         for enemy_transform in enemy_query.iter() {
@@ -241,7 +245,10 @@ pub fn enemy_hit_player(
             if distance < player_radius + enemy_radius {
                 println!("Enemy hit player! Game Over!");
                 let sound_effect = asset_server.load("audio/explosionCrunch_000.ogg");
-                audio.play(sound_effect);
+                commands.spawn(AudioBundle {
+                    source: sound_effect,
+                    settings: PlaybackSettings::DESPAWN,
+                });
                 commands.entity(player_entity).despawn();
             }
         }
